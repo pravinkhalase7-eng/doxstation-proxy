@@ -85,3 +85,17 @@ else
   rm -f "$ENVMANAGER_OUT"
   echo "nginx: HTTP only for manager.doxstation.com (no cert yet)"
 fi
+
+# quiz.doxstation.com → Ignite Quiz (separate cert + vhost).
+QUIZ_TPL="/etc/nginx/templates-extra/https-quiz.conf.template"
+QUIZ_OUT="/etc/nginx/conf.d/60-https-quiz.conf"
+QUIZ_CERT="/etc/letsencrypt/live/quiz.doxstation.com/fullchain.pem"
+QUIZ_KEY="/etc/letsencrypt/live/quiz.doxstation.com/privkey.pem"
+
+if [ -f "$QUIZ_CERT" ] && [ -f "$QUIZ_KEY" ] && [ -f "$QUIZ_TPL" ]; then
+  cp "$QUIZ_TPL" "$QUIZ_OUT"
+  echo "nginx: HTTPS enabled for quiz.doxstation.com (Ignite Quiz)"
+else
+  rm -f "$QUIZ_OUT"
+  echo "nginx: HTTP only for quiz.doxstation.com (no cert yet)"
+fi

@@ -39,7 +39,7 @@ pipeline {
           test -f nginx/play.inc
           test -f nginx/35-play-upstreams.sh
           test -f nginx/40-https.sh
-          test -f scripts/install_edge.sh
+          test -f scripts/deploy.sh
         '''
       }
     }
@@ -61,27 +61,12 @@ pipeline {
       steps {
         sh '''
           set -e
-          echo "=== Free :80/:443 from leftover aicoder-nginx if present ==="
-          docker rm -f aicoder-nginx-1 aicoder-edge-1 2>/dev/null || true
-
-          echo "=== Start doxstation-edge (does not touch aicoder) ==="
-          docker compose -p doxstation -f docker-compose.yml up -d --build --remove-orphans
-          docker compose -p doxstation -f docker-compose.yml ps
-        '''
-      }
-    }
-
-    stage('TLS') {
-      when {
-        expression { return !params.SKIP_DEPLOY }
-      }
-      steps {
-        sh '''
-          set -e
           export NGINX_SERVER_NAME="play.doxstation.com"
           export PLAY_WEB_PORT="${PLAY_WEB_PORT:-3010}"
           export PLAY_API_PORT="${PLAY_API_PORT:-8010}"
-          bash scripts/install_edge.sh
+          export WEB_HOST_PORT="${PLAY_WEB_PORT}"
+          export API_HOST_PORT="${PLAY_API_PORT}"
+          bash scripts/deploy.sh
         '''
       }
     }

@@ -27,7 +27,7 @@ docker compose up -d --build
 ## TLS
 
 ```bash
-bash scripts/install_edge.sh
+bash scripts/deploy.sh
 ```
 
 HTTP-01 uses `/var/www/html`. Recreate the container after a new cert so `40-https.sh` loads the vhost.
