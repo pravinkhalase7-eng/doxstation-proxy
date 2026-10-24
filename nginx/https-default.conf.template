@@ -1,0 +1,18 @@
+# Reject unmatched HTTPS names. Without this, nginx uses the first 443
+# vhost (Byte / play.doxstation.com) for docvault, shorts, etc.
+
+server {
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name _;
+    ssl_certificate     /etc/letsencrypt/live/play.doxstation.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/play.doxstation.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    default_type text/plain;
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+    location / {
+        return 404 "unknown host\n";
+    }
+}
