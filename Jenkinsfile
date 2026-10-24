@@ -5,35 +5,26 @@ pipeline {
     timestamps()
     disableConcurrentBuilds()
     buildDiscarder(logRotator(numToKeepStr: '20'))
-    timeout(time: 30, unit: 'MINUTES')
+    timeout(time: 20, unit: 'MINUTES')
   }
 
   parameters {
     booleanParam(
       name: 'SKIP_DEPLOY',
       defaultValue: false,
-      description: 'Validate the checkout only. Do not recreate the edge.'
-    )
-    string(
-      name: 'PUBLIC_APP_URL',
-      defaultValue: 'https://play.doxstation.com',
-      description: 'Play hostname used for the TLS check. Other vhosts are baked into nginx/.'
-    )
-    string(
-      name: 'WEB_HOST_PORT',
-      defaultValue: '3010',
-      description: 'AI Code Player UI host port. This job does not restart that app.'
-    )
-    string(
-      name: 'API_HOST_PORT',
-      defaultValue: '8010',
-      description: 'AI Code Player API host port. This job does not restart that app.'
+      description: 'Build only — skip starting the edge container'
     )
   }
 
   environment {
-    EDGE_COMPOSE_PROJECT_NAME = 'doxstation'
-    IMAGE_TAG = 'latest'
+    COMPOSE_PROJECT_NAME = 'doxstation'
+    EDGE_IMAGE           = "doxstation-edge:${env.BUILD_NUMBER}"
+    EDGE_IMAGE_LATEST    = 'doxstation-edge:latest'
+    PLAY_WEB_PORT        = '3010'
+    PLAY_API_PORT        = '8010'
+    NGINX_HTTP_PORT      = '80'
+    NGINX_HTTPS_PORT     = '443'
+    NGINX_SERVER_NAME    = 'play.doxstation.com'
   }
 
   stages {
@@ -41,66 +32,56 @@ pipeline {
       steps {
         checkout scm
         sh '''
-          echo "Branch: ${GIT_BRANCH:-unknown}"
-          echo "Commit: ${GIT_COMMIT:-unknown}"
-          git rev-parse --short HEAD || true
-          echo "=== Workspace files ==="
-          ls -la
-          test -f Jenkinsfile || { echo "ERROR: Jenkinsfile missing"; exit 1; }
-          test -f docker-compose.yml || { echo "ERROR: docker-compose.yml missing"; exit 1; }
-          test -f nginx/Dockerfile || { echo "ERROR: nginx/Dockerfile missing"; exit 1; }
-          test -f nginx/default.conf || { echo "ERROR: nginx/default.conf missing"; exit 1; }
-          test -f scripts/deploy.sh || { echo "ERROR: scripts/deploy.sh missing"; exit 1; }
+          test -f Jenkinsfile
+          test -f docker-compose.yml
+          test -f nginx/Dockerfile
+          test -f nginx/default.conf
+          test -f nginx/play.inc
+          test -f nginx/35-play-upstreams.sh
+          test -f nginx/40-https.sh
+          test -f scripts/install_edge.sh
         '''
       }
     }
 
-    stage('Detect Tools') {
+    stage('Docker Build') {
       steps {
         sh '''
-          echo "=== Agent tools ==="
-          docker --version
-          docker compose version
-          echo "WORKSPACE=${WORKSPACE}"
-          echo "This job recreates only Compose project doxstation. It does not stop other projects."
+          set -e
+          docker build -t ${EDGE_IMAGE} -t ${EDGE_IMAGE_LATEST} ./nginx
+          docker images | grep doxstation-edge | head
         '''
       }
     }
 
-    stage('Deploy edge') {
+    stage('Deploy') {
       when {
         expression { return !params.SKIP_DEPLOY }
       }
       steps {
         sh '''
-          set -euo pipefail
-          cp -f .env.example .env
-          export PUBLIC_APP_URL="${PUBLIC_APP_URL:-https://play.doxstation.com}"
-          export WEB_HOST_PORT="${WEB_HOST_PORT:-3010}"
-          export API_HOST_PORT="${API_HOST_PORT:-8010}"
-          export EDGE_COMPOSE_PROJECT_NAME=doxstation
-          export IMAGE_TAG=latest
-          echo "Deploying edge project doxstation. Play upstream ${WEB_HOST_PORT}/${API_HOST_PORT}."
-          bash scripts/deploy.sh
-        '''
-      }
-    }
+          set -e
+          echo "=== Free :80/:443 from leftover aicoder-nginx if present ==="
+          docker rm -f aicoder-nginx-1 aicoder-edge-1 2>/dev/null || true
 
-    stage('Check') {
-      when {
-        expression { return !params.SKIP_DEPLOY }
-      }
-      steps {
-        sh '''
-          set -euo pipefail
+          echo "=== Start doxstation-edge (does not touch aicoder) ==="
+          docker compose -p doxstation -f docker-compose.yml up -d --build --remove-orphans
           docker compose -p doxstation -f docker-compose.yml ps
-          if docker compose -p doxstation -f docker-compose.yml exec -T edge wget -S -O /dev/null --header='Host: play.doxstation.com' http://127.0.0.1/ 2>&1 | grep -q HTTP; then
-            echo "edge_ok"
-          else
-            echo "ERROR: edge did not answer on :80"
-            docker compose -p doxstation -f docker-compose.yml logs --tail=80
-            exit 1
-          fi
+        '''
+      }
+    }
+
+    stage('TLS') {
+      when {
+        expression { return !params.SKIP_DEPLOY }
+      }
+      steps {
+        sh '''
+          set -e
+          export NGINX_SERVER_NAME="play.doxstation.com"
+          export PLAY_WEB_PORT="${PLAY_WEB_PORT:-3010}"
+          export PLAY_API_PORT="${PLAY_API_PORT:-8010}"
+          bash scripts/install_edge.sh
         '''
       }
     }
@@ -108,12 +89,9 @@ pipeline {
 
   post {
     success {
-      echo "doxstation edge build #${env.BUILD_NUMBER} succeeded"
-      echo "HTTP:  http://play.doxstation.com"
-      echo "HTTPS: ${params.PUBLIC_APP_URL}"
+      echo "doxstation-edge ${env.BUILD_NUMBER} ready on :80/:443"
     }
     failure {
-      echo "doxstation edge build #${env.BUILD_NUMBER} failed. The other Compose projects were not stopped."
       sh 'docker compose -p doxstation -f docker-compose.yml logs --tail=80 || true'
     }
   }
