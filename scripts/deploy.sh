@@ -57,7 +57,48 @@ reload_nginx() {
   edge_compose exec -T edge nginx -s reload
 }
 
+# The previous public proxy may belong to another Compose project. Stop only
+# that proxy container so this project can bind :80/:443. Never stop a project
+# that also runs an application.
+release_previous_proxy() {
+  local ids id name image project service
+  ids="$(
+    {
+      docker ps -q --filter publish=80 || true
+      docker ps -q --filter publish=443 || true
+    } | awk 'NF && !seen[$0]++'
+  )"
+  if [ -z "${ids}" ]; then
+    echo "No container is publishing host port 80 or 443."
+    return 0
+  fi
+  for id in ${ids}; do
+    name="$(docker inspect -f '{{.Name}}' "$id")"
+    name="${name#/}"
+    image="$(docker inspect -f '{{.Config.Image}}' "$id")"
+    project="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$id")"
+    service="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.service"}}' "$id")"
+    if [ "$project" = "$EDGE_PROJECT" ] && [ "$service" = "edge" ]; then
+      echo "Edge ${name} already belongs to project ${EDGE_PROJECT}."
+      continue
+    fi
+    case "${name} ${image} ${service}" in
+      *nginx*|*edge*|*proxy*)
+        echo "Replacing proxy ${name} (image ${image}, project ${project:-none}). Application containers stay running."
+        docker stop "$id"
+        docker rm "$id"
+        ;;
+      *)
+        echo "ERROR: ${name} (${image}) holds port 80 or 443 and is not a proxy container. Not stopping it."
+        docker ps --filter "id=${id}" --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}\t{{.Status}}'
+        return 1
+        ;;
+    esac
+  done
+}
+
 start_nginx() {
+  release_previous_proxy
   echo "Starting doxstation-edge on host :80/:443 → play.doxstation.com (${DOMAIN}) via :${WEB_HOST_PORT}/:${API_HOST_PORT}"
   edge_compose up -d --build --force-recreate
   i=1
