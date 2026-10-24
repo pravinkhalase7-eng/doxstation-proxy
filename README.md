@@ -17,6 +17,21 @@ Upstream apps stay on their own published host ports. This proxy reaches them th
 
 Certificates stay on the host at `/etc/letsencrypt`. ACME webroot stays at `/var/www/html`. This project mounts both read-only and does not delete them.
 
+## Jenkins
+
+Create a second Jenkins job. Do not add this pipeline to the AI Code Player job.
+
+1. Open Jenkins on the VPS and choose **New Item**.
+2. Name it `doxstation-proxy`. Type: **Pipeline**.
+3. Under **Pipeline**, select **Pipeline script from SCM**.
+4. SCM: **Git**. Repository URL: `https://github.com/pravinkhalase7-eng/doxstation-proxy.git`. Branch: `*/main`.
+5. Script Path: `Jenkinsfile`.
+6. Save, then **Build Now**.
+
+The job must run on the same machine that already owns ports 80 and 443, with permission to use the host Docker socket. It runs `scripts/deploy.sh`, which recreates only Compose project `doxstation`. A failed build prints edge logs and does not stop the other application projects.
+
+Use **Build with Parameters** and set `SKIP_DEPLOY` when you only want to confirm the checkout.
+
 ## Deploy on the VPS
 
 Do this from a checkout of this repository on the VPS. Do not run it from a laptop unless that machine is the VPS.
