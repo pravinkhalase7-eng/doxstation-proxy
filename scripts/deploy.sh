@@ -52,7 +52,11 @@ edge_compose() {
 }
 
 nginx_answers() {
-  edge_compose exec -T edge wget -S -O /dev/null --header='Host: play.doxstation.com' http://127.0.0.1/ 2>&1 | grep -q HTTP
+  # Any HTTP status means Nginx is listening. A 502 only means one upstream
+  # app is down, and that must not fail the edge deploy.
+  local out
+  out="$(edge_compose exec -T edge wget -S -O /dev/null http://127.0.0.1/ 2>&1 || true)"
+  printf '%s\n' "$out" | grep -q HTTP
 }
 
 reload_nginx() {
@@ -115,7 +119,7 @@ start_nginx() {
   done
   echo "ERROR: edge did not answer on :80"
   edge_compose logs --tail=80 || true
-  echo "If bind failed, something else owns port 80. :${WEB_HOST_PORT} still works."
+  echo "Nginx produced no HTTP response. A stopped upstream app is not this failure."
   return 1
 }
 
