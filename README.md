@@ -13,6 +13,7 @@ App stacks stay in their own folders. Proxy changes happen here, not in AI Code 
 | `manager.doxstation.com` | `:3050` |
 | `quiz.doxstation.com` | `:4173` |
 | `toddler.doxstation.com` | `:5174` |
+| `techshala.doxstation.com` | `:5175` |
 
 ## Deploy
 

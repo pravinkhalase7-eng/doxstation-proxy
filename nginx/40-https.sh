@@ -113,3 +113,17 @@ else
   rm -f "$TODDLER_OUT"
   echo "nginx: HTTP only for toddler.doxstation.com (no cert yet)"
 fi
+
+# techshala.doxstation.com → TechShala (separate cert + vhost).
+TECHSHALA_TPL="/etc/nginx/templates-extra/https-techshala.conf.template"
+TECHSHALA_OUT="/etc/nginx/conf.d/80-https-techshala.conf"
+TECHSHALA_CERT="/etc/letsencrypt/live/techshala.doxstation.com/fullchain.pem"
+TECHSHALA_KEY="/etc/letsencrypt/live/techshala.doxstation.com/privkey.pem"
+
+if [ -f "$TECHSHALA_CERT" ] && [ -f "$TECHSHALA_KEY" ] && [ -f "$TECHSHALA_TPL" ]; then
+  cp "$TECHSHALA_TPL" "$TECHSHALA_OUT"
+  echo "nginx: HTTPS enabled for techshala.doxstation.com"
+else
+  rm -f "$TECHSHALA_OUT"
+  echo "nginx: HTTP only for techshala.doxstation.com (no cert yet)"
+fi
