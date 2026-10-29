@@ -335,6 +335,42 @@ issue_quiz_cert_if_needed() {
   return 0
 }
 
+toddler_cert_exists() {
+  docker run --rm \
+    -v /etc/letsencrypt:/etc/letsencrypt:ro \
+    alpine:3.20 \
+    sh -c "test -f /etc/letsencrypt/live/toddler.doxstation.com/fullchain.pem && test -f /etc/letsencrypt/live/toddler.doxstation.com/privkey.pem"
+}
+
+issue_toddler_cert_if_needed() {
+  if toddler_cert_exists; then
+    echo "TLS cert already present for toddler.doxstation.com"
+    return 0
+  fi
+
+  echo "No TLS cert for toddler.doxstation.com — requesting Let's Encrypt (Toddler)"
+  prepare_webroot
+  sleep 2
+
+  set +e
+  docker run --rm \
+    -v /etc/letsencrypt:/etc/letsencrypt \
+    -v /var/lib/letsencrypt:/var/lib/letsencrypt \
+    -v /var/www/html:/var/www/html \
+    certbot/certbot \
+    certonly --webroot -w /var/www/html \
+      -d toddler.doxstation.com \
+      --non-interactive --agree-tos --register-unsafely-without-email \
+      --keep-until-expiring
+  status=$?
+  set -e
+  if [ "$status" -ne 0 ]; then
+    echo "WARN: certbot failed for toddler.doxstation.com. http://toddler.doxstation.com still works on :80."
+    return 1
+  fi
+  return 0
+}
+
 # Host nginx copy is best-effort (doc-vault). Compose `edge` is what serves :80.
 try_host_nginx_copy() {
   if [ ! -f "$HOST_HTTP_TEMPLATE" ] || [ ! -f "$HOST_HTTPS_TEMPLATE" ]; then
@@ -361,6 +397,7 @@ SHORTS_TLS=0
 DOCVAULT_TLS=0
 MANAGER_TLS=0
 QUIZ_TLS=0
+TODDLER_TLS=0
 if issue_cert_if_needed && cert_exists; then
   PLAY_TLS=1
 fi
@@ -379,8 +416,11 @@ fi
 if issue_quiz_cert_if_needed && quiz_cert_exists; then
   QUIZ_TLS=1
 fi
+if issue_toddler_cert_if_needed && toddler_cert_exists; then
+  TODDLER_TLS=1
+fi
 
-if [ "$PLAY_TLS" = "1" ] || [ "$APEX_TLS" = "1" ] || [ "$SHORTS_TLS" = "1" ] || [ "$DOCVAULT_TLS" = "1" ] || [ "$MANAGER_TLS" = "1" ] || [ "$QUIZ_TLS" = "1" ]; then
+if [ "$PLAY_TLS" = "1" ] || [ "$APEX_TLS" = "1" ] || [ "$SHORTS_TLS" = "1" ] || [ "$DOCVAULT_TLS" = "1" ] || [ "$MANAGER_TLS" = "1" ] || [ "$QUIZ_TLS" = "1" ] || [ "$TODDLER_TLS" = "1" ]; then
   edge_compose up -d --force-recreate
   i=1
   while [ "$i" -le 10 ]; do
@@ -428,4 +468,10 @@ if [ "$QUIZ_TLS" = "1" ]; then
   echo "edge ready: https://quiz.doxstation.com → Ignite Quiz :4173"
 else
   echo "http://quiz.doxstation.com works if DNS is set; https://quiz.doxstation.com needs a Let's Encrypt cert."
+fi
+
+if [ "$TODDLER_TLS" = "1" ]; then
+  echo "edge ready: https://toddler.doxstation.com → Toddler :5174"
+else
+  echo "http://toddler.doxstation.com works if DNS is set; https://toddler.doxstation.com needs a Let's Encrypt cert."
 fi

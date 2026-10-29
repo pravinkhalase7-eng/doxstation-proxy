@@ -10,6 +10,7 @@ COPY https-shortvideo.conf.template /etc/nginx/templates-extra/https-shortvideo.
 COPY https-docvault.conf.template /etc/nginx/templates-extra/https-docvault.conf.template
 COPY https-envmanager.conf.template /etc/nginx/templates-extra/https-envmanager.conf.template
 COPY https-quiz.conf.template /etc/nginx/templates-extra/https-quiz.conf.template
+COPY https-toddler.conf.template /etc/nginx/templates-extra/https-toddler.conf.template
 COPY 35-play-upstreams.sh /docker-entrypoint.d/35-play-upstreams.sh
 COPY 40-https.sh /docker-entrypoint.d/40-https.sh
 RUN chmod +x /docker-entrypoint.d/35-play-upstreams.sh /docker-entrypoint.d/40-https.sh

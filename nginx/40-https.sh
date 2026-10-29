@@ -99,3 +99,17 @@ else
   rm -f "$QUIZ_OUT"
   echo "nginx: HTTP only for quiz.doxstation.com (no cert yet)"
 fi
+
+# toddler.doxstation.com → Toddler app (separate cert + vhost).
+TODDLER_TPL="/etc/nginx/templates-extra/https-toddler.conf.template"
+TODDLER_OUT="/etc/nginx/conf.d/70-https-toddler.conf"
+TODDLER_CERT="/etc/letsencrypt/live/toddler.doxstation.com/fullchain.pem"
+TODDLER_KEY="/etc/letsencrypt/live/toddler.doxstation.com/privkey.pem"
+
+if [ -f "$TODDLER_CERT" ] && [ -f "$TODDLER_KEY" ] && [ -f "$TODDLER_TPL" ]; then
+  cp "$TODDLER_TPL" "$TODDLER_OUT"
+  echo "nginx: HTTPS enabled for toddler.doxstation.com"
+else
+  rm -f "$TODDLER_OUT"
+  echo "nginx: HTTP only for toddler.doxstation.com (no cert yet)"
+fi
